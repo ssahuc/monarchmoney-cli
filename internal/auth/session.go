@@ -23,7 +23,7 @@ type Store struct {
 
 var (
 	marshalSession   = json.MarshalIndent
-	writeSessionFile = os.WriteFile
+	writeSessionFile = writeFileAtomic
 	readSessionFile  = os.ReadFile
 )
 
@@ -70,4 +70,25 @@ func (s *Store) Load() (*Session, error) {
 
 func (s *Store) Delete() error {
 	return os.Remove(s.Path)
+}
+
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
