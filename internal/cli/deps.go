@@ -36,7 +36,7 @@ func newDeps(renderer *output.Renderer, command string, start time.Time) (Comman
 		return CommandDeps{}, false
 	}
 
-	client := graphql.NewClient(cfg.APIEndpoint, graphql.TokenAuth(sess.Token), cfg.Timeout)
+	client := graphql.NewClient(cfg.APIEndpoint, sess.Credentials(), cfg.Timeout)
 	return CommandDeps{
 		Start:    start,
 		Renderer: renderer,

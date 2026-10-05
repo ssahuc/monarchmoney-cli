@@ -7,14 +7,27 @@ import (
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
+	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
+const AuthMethodBrowserSession = "browser_session"
+
 type Session struct {
-	Profile   string    `json:"profile"`
-	Email     string    `json:"email,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Token     string    `json:"token,omitempty"`
+	Profile    string    `json:"profile"`
+	Email      string    `json:"email,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	Token      string    `json:"token,omitempty"`
+	AuthMethod string    `json:"auth_method,omitempty"`
+	SessionID  string    `json:"session_id,omitempty"`
+	CSRFToken  string    `json:"csrf_token,omitempty"`
+}
+
+func (s *Session) Credentials() graphql.Credentials {
+	if s.AuthMethod == AuthMethodBrowserSession {
+		return graphql.SessionAuth{SessionID: s.SessionID, CSRFToken: s.CSRFToken}
+	}
+	return graphql.TokenAuth(s.Token)
 }
 
 type Store struct {
@@ -56,14 +69,15 @@ func (s *Store) Load() (*Session, error) {
 		return nil, err
 	}
 
-	// The stored token may use the "env:NAME" indirection form; resolve it to
-	// the real secret here, at the single point where the session becomes
-	// usable credentials. A literal token is returned unchanged.
-	token, err := config.ResolveSecret(sess.Token)
-	if err != nil {
-		return nil, err
+	// Stored secrets may use the "env:NAME" indirection form; resolve them here,
+	// at the single point where the session becomes usable credentials.
+	for _, secret := range []*string{&sess.Token, &sess.SessionID, &sess.CSRFToken} {
+		resolved, err := config.ResolveSecret(*secret)
+		if err != nil {
+			return nil, err
+		}
+		*secret = resolved
 	}
-	sess.Token = token
 
 	return &sess, nil
 }

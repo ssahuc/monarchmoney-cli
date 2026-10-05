@@ -163,7 +163,7 @@ var statusCmd = &cobra.Command{
 			return
 		}
 
-		identity, err := fetchIdentity(cmd.Context(), graphql.TokenAuth(sess.Token))
+		identity, err := fetchIdentity(cmd.Context(), sess.Credentials())
 		if err != nil {
 			cliErr, ok := err.(*errors.Error)
 			if !ok {
