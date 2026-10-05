@@ -226,26 +226,6 @@ func testAuthenticateFailureResponses(t *testing.T) {
 		mustErrContains(t, err, "failed to reach Monarch API")
 	})
 
-	t.Run("mfa required", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "", "")
-		mustErrContains(t, err, "MFA code required")
-	})
-
-	t.Run("invalid credentials with mfa", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "123456", "")
-		mustErrContains(t, err, "invalid credentials or MFA code")
-	})
-
 	t.Run("api error", func(t *testing.T) {
 		newLoginHTTPClient = func() *http.Client {
 			return &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {

@@ -23,6 +23,17 @@ If you have your TOTP secret key, you can automate the process:
 monarch auth login --email user@example.com --password "..." --mfa-secret "YOUR_SECRET"
 ```
 
+### Login Errors
+Monarch rejects many unrelated login attempts with HTTP 401/403 — wrong credentials, its minimum-app-version gate ("Please update to the latest version of the app"), email one-time-code verification, CAPTCHA, and its edge's browser-signature block. The CLI reports MFA only when Monarch's response names an MFA challenge (`error_code` `MFA_REQUIRED`, or an MFA/two-factor/TOTP message):
+
+| Response | Code | MFA prompt |
+|---|---|---|
+| MFA challenge, no code supplied | `AUTH_MFA_REQUIRED` | yes (interactive only) |
+| MFA challenge, code or secret supplied | `AUTH_MFA_INVALID` | no |
+| Any other 401/403 | `AUTH_REQUIRED`, message `Monarch rejected the login: <Monarch's detail>` | no |
+
+Only Monarch's `detail` (or `error_code`, or the HTTP status) is surfaced; the request body, password, and MFA secret never appear in errors.
+
 ## Session Persistence
 
 Once authenticated, a session token is stored locally. This token is used for all subsequent commands.

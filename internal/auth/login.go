@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/pquerna/otp/totp"
@@ -38,7 +39,8 @@ type loginResponse struct {
 }
 
 // Authenticate logs in through Monarch's REST endpoint, not GraphQL.
-// Monarch maps 401/403 without MFA to "MFA required" and with MFA to invalid credentials or code.
+// Monarch answers unrelated rejections (app-version gate, edge block, CAPTCHA, email OTP) with 401/403,
+// so MFA is reported only when the response body names an MFA challenge.
 func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) {
 	if mfaSecret != "" {
 		code, err := totp.GenerateCode(mfaSecret, time.Now())
@@ -72,22 +74,8 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 403 || resp.StatusCode == 401 {
-		if mfaCode == "" && mfaSecret == "" {
-			return nil, errors.New(errors.AuthMFARequired, "MFA code required", errors.CatAuth, false, nil)
-		}
-		return nil, errors.New(errors.AuthMFAInvalid, "invalid credentials or MFA code", errors.CatAuth, false, nil)
-	}
-
 	if resp.StatusCode != 200 {
-		var apiErr struct {
-			Detail    string `json:"detail"`
-			ErrorCode string `json:"error_code"`
-		}
-		if err := json.NewDecoder(io.LimitReader(resp.Body, maxLoginResponseSize)).Decode(&apiErr); err == nil && apiErr.Detail != "" {
-			return nil, errors.New(errors.APIError, apiErr.Detail, errors.CatAPI, false, nil)
-		}
-		return nil, errors.New(errors.APIError, fmt.Sprintf("API returned status %d", resp.StatusCode), errors.CatAPI, false, nil)
+		return nil, loginFailure(resp, mfaCode != "")
 	}
 
 	var loginResp loginResponse
@@ -101,4 +89,44 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil
+}
+
+var mfaChallenge = regexp.MustCompile(`(?i)\bmfa\b|multi.?factor|two.?factor|\b2fa\b|\btotp\b`)
+
+func loginFailure(resp *http.Response, mfaSupplied bool) *errors.Error {
+	var apiErr struct {
+		Detail    string `json:"detail"`
+		ErrorCode any    `json:"error_code"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, maxLoginResponseSize)).Decode(&apiErr)
+	code := ""
+	if apiErr.ErrorCode != nil {
+		code = fmt.Sprint(apiErr.ErrorCode)
+	}
+
+	if resp.StatusCode != 401 && resp.StatusCode != 403 {
+		if apiErr.Detail != "" {
+			return errors.New(errors.APIError, apiErr.Detail, errors.CatAPI, false, nil)
+		}
+		return errors.New(errors.APIError, fmt.Sprintf("API returned status %d", resp.StatusCode), errors.CatAPI, false, nil)
+	}
+
+	if code == "MFA_REQUIRED" || mfaChallenge.MatchString(apiErr.Detail) {
+		if mfaSupplied {
+			return errors.New(errors.AuthMFAInvalid, firstNonEmpty(apiErr.Detail, "MFA code rejected"), errors.CatAuth, false, nil)
+		}
+		return errors.New(errors.AuthMFARequired, "MFA code required", errors.CatAuth, false, nil)
+	}
+
+	reason := firstNonEmpty(apiErr.Detail, code, fmt.Sprintf("HTTP %d", resp.StatusCode))
+	return errors.New(errors.AuthRequired, "Monarch rejected the login: "+reason, errors.CatAuth, false, nil)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
