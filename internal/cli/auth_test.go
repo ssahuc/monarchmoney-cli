@@ -14,6 +14,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
 func captureStdout(t *testing.T, fn func()) string {
@@ -65,7 +66,7 @@ func withAuthTestDefaults(t *testing.T, sessionPath string) func() {
 	scanInput = func(...any) (int, error) {
 		return 0, errors.New("unexpected prompt")
 	}
-	fetchIdentity = func(_ context.Context, _ string) (*identityResult, error) {
+	fetchIdentity = func(_ context.Context, _ graphql.Credentials) (*identityResult, error) {
 		return &identityResult{Email: "fallback@example.com"}, nil
 	}
 	exitFunc = func(int) {}
@@ -207,8 +208,10 @@ func testAuthStatusSuccess(t *testing.T) {
 	}
 
 	gotToken := ""
-	fetchIdentity = func(_ context.Context, token string) (*identityResult, error) {
-		gotToken = token
+	fetchIdentity = func(_ context.Context, creds graphql.Credentials) (*identityResult, error) {
+		if token, ok := creds.(graphql.TokenAuth); ok {
+			gotToken = string(token)
+		}
 		return &identityResult{Email: "a@example.com"}, nil
 	}
 
@@ -247,7 +250,7 @@ func testAuthStatusMissingSession(t *testing.T) {
 		exitCode = code
 	}
 	called := false
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
+	fetchIdentity = func(context.Context, graphql.Credentials) (*identityResult, error) {
 		called = true
 		return nil, nil
 	}
@@ -295,7 +298,7 @@ func testAuthStatusExpiredSession(t *testing.T) {
 	exitFunc = func(code int) {
 		exitCode = code
 	}
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
+	fetchIdentity = func(context.Context, graphql.Credentials) (*identityResult, error) {
 		return nil, clierrors.New(clierrors.AuthSessionExpired, "session token expired or invalid; run `monarch auth login` again", clierrors.CatAuth, true, nil)
 	}
 
@@ -342,7 +345,7 @@ func testAuthStatusNetworkError(t *testing.T) {
 	exitFunc = func(code int) {
 		exitCode = code
 	}
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
+	fetchIdentity = func(context.Context, graphql.Credentials) (*identityResult, error) {
 		return nil, clierrors.New(clierrors.NetworkUnreachable, "failed to reach Monarch API", clierrors.CatNetwork, true, nil)
 	}
 

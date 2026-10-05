@@ -34,7 +34,7 @@ func TestLiveEndpointAvailability(t *testing.T) {
 		endpoint = "https://api.monarch.com/graphql"
 	}
 
-	svc := NewService(graphql.NewClient(endpoint, token, 60*time.Second))
+	svc := NewService(graphql.NewClient(endpoint, graphql.TokenAuth(token), 60*time.Second))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 

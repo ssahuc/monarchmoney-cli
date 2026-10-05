@@ -25,9 +25,10 @@ func UserAgent() string {
 }
 
 const (
-	maxResponseBody = 10 << 20
-	maxRetries      = 3
-	maxRetryWait    = 10 * time.Second
+	maxResponseBody  = 10 << 20
+	maxForbiddenBody = 64 << 10
+	maxRetries       = 3
+	maxRetryWait     = 10 * time.Second
 )
 
 type Request struct {
@@ -38,15 +39,17 @@ type Request struct {
 
 type Client struct {
 	Endpoint string
-	Token    string
+	Auth     Credentials
 	HTTP     *http.Client
 }
 
-func (c *Client) TokenValue() string {
-	return c.Token
+func (c *Client) ApplyAuth(req *http.Request) {
+	if c.Auth != nil {
+		c.Auth.Apply(req)
+	}
 }
 
-func NewClient(endpoint, token string, timeout time.Duration) *Client {
+func NewClient(endpoint string, auth Credentials, timeout time.Duration) *Client {
 	httpClient := &http.Client{
 		Timeout:       timeout,
 		CheckRedirect: rejectRedirects,
@@ -61,9 +64,27 @@ func NewClient(endpoint, token string, timeout time.Duration) *Client {
 	}
 	return &Client{
 		Endpoint: endpoint,
-		Token:    token,
+		Auth:     auth,
 		HTTP:     httpClient,
 	}
+}
+
+// forbidden separates Monarch's edge block (Cloudflare 1010, HTML or JSON) from the API's own
+// 403, which it returns when a session is missing, expired, or fails the CSRF check.
+func forbidden(resp *http.Response) *errors.Error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxForbiddenBody))
+	var apiErr struct {
+		Detail    string `json:"detail"`
+		ErrorCode any    `json:"error_code"`
+	}
+	isJSON := json.Unmarshal(body, &apiErr) == nil
+	if fmt.Sprint(apiErr.ErrorCode) == "1010" || bytes.Contains(bytes.ToLower(body), []byte("cloudflare")) {
+		return errors.New(errors.APIError, "request blocked by Monarch's edge protection (HTTP 403)", errors.CatAPI, false, nil)
+	}
+	if isJSON && apiErr.Detail != "" {
+		return errors.New(errors.AuthSessionExpired, "Monarch rejected the session: "+apiErr.Detail, errors.CatAuth, false, nil)
+	}
+	return errors.New(errors.APIError, "API returned status 403", errors.CatAPI, false, nil)
 }
 
 func rejectRedirects(_ *http.Request, _ []*http.Request) error {
@@ -130,9 +151,7 @@ func (c *Client) doOnce(ctx context.Context, reqBody *Request, result any) error
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", UserAgent())
-	if c.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.Token))
-	}
+	c.ApplyAuth(req)
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
@@ -142,6 +161,10 @@ func (c *Client) doOnce(ctx context.Context, reqBody *Request, result any) error
 
 	if resp.StatusCode == 401 {
 		return errors.New(errors.AuthSessionExpired, "session token expired or invalid; run `monarch auth login` again", errors.CatAuth, true, nil)
+	}
+
+	if resp.StatusCode == 403 {
+		return forbidden(resp)
 	}
 
 	if resp.StatusCode == 429 {

@@ -273,9 +273,7 @@ func (s *Service) postReceiptFile(ctx context.Context, syncID, filename, content
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent())
-	if token := s.Client.TokenValue(); token != "" {
-		req.Header.Set("Authorization", "Token "+token)
-	}
+	s.Client.ApplyAuth(req)
 
 	resp, err := retailSyncUploadClient.Do(req)
 	if err != nil {

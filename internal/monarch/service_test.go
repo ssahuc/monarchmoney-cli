@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -66,8 +67,8 @@ func (m *mockClient) DoMutation(_ context.Context, req *graphql.Request, result 
 	return nil
 }
 
-func (m *mockClient) TokenValue() string {
-	return m.token
+func (m *mockClient) ApplyAuth(req *http.Request) {
+	graphql.TokenAuth(m.token).Apply(req)
 }
 
 func (m *mockClient) respond(result any, payload string) error {
@@ -141,10 +142,12 @@ func runGraphQLErrorCase(t *testing.T, op string, wantVars map[string]any, call 
 	}
 }
 
-func TestServiceTokenValue(t *testing.T) {
+func TestServiceApplyAuth(t *testing.T) {
 	svc := newMockService("abc123")
-	if got := svc.Client.TokenValue(); got != "abc123" {
-		t.Fatalf("TokenValue() = %q, want %q", got, "abc123")
+	req := httptest.NewRequest("POST", "https://api.monarch.com/upload", http.NoBody)
+	svc.Client.ApplyAuth(req)
+	if got := req.Header.Get("Authorization"); got != "Token abc123" {
+		t.Fatalf("Authorization = %q, want %q", got, "Token abc123")
 	}
 }
 

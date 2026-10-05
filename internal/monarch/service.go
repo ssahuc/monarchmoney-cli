@@ -2,6 +2,7 @@ package monarch
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
@@ -9,7 +10,7 @@ import (
 type graphQLClient interface {
 	Do(ctx context.Context, reqBody *graphql.Request, result any) error
 	DoMutation(ctx context.Context, reqBody *graphql.Request, result any) error
-	TokenValue() string
+	ApplyAuth(req *http.Request)
 }
 
 type Service struct {

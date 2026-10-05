@@ -877,9 +877,7 @@ func (s *Service) postBalanceHistoryCSV(ctx context.Context, body *bytes.Buffer,
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent())
-	if token := s.Client.TokenValue(); token != "" {
-		req.Header.Set("Authorization", "Token "+token)
-	}
+	s.Client.ApplyAuth(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

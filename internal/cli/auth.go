@@ -49,8 +49,8 @@ type identityResult struct {
 	Email string
 }
 
-var fetchIdentity = func(ctx context.Context, token string) (*identityResult, error) {
-	client := graphql.NewClient("https://api.monarch.com/graphql", token, timeout)
+var fetchIdentity = func(ctx context.Context, creds graphql.Credentials) (*identityResult, error) {
+	client := graphql.NewClient("https://api.monarch.com/graphql", creds, timeout)
 	var resp struct {
 		Me struct {
 			Email string `json:"email"`
@@ -163,7 +163,7 @@ var statusCmd = &cobra.Command{
 			return
 		}
 
-		identity, err := fetchIdentity(cmd.Context(), sess.Token)
+		identity, err := fetchIdentity(cmd.Context(), graphql.TokenAuth(sess.Token))
 		if err != nil {
 			cliErr, ok := err.(*errors.Error)
 			if !ok {
