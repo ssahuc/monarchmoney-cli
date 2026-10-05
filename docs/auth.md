@@ -23,6 +23,21 @@ If you have your TOTP secret key, you can automate the process:
 monarch auth login --email user@example.com --password "..." --mfa-secret "YOUR_SECRET"
 ```
 
+### Browser Session (when password login is blocked)
+Monarch currently blocks programmatic password login (see `docs/adr/0016-browser-session-authentication.md`). Instead, log into https://app.monarch.com normally in your browser — including any email code, MFA, or challenge Monarch shows — and hand that session to the CLI:
+
+```bash
+monarch auth import-session
+```
+
+1. In the browser's developer tools, open the Network tab and select any request to `api.monarch.com/graphql`.
+2. From its `Cookie` request header, copy the `session_id` value (it is HttpOnly, so it appears only there) and the `csrftoken` value.
+3. Paste each at its hidden prompt.
+
+Alternatively, copy the whole `Cookie` header and pipe it in: `pbpaste | monarch auth import-session`. The CLI keeps only `session_id` and `csrftoken` and discards every other cookie, including Cloudflare's. Cookie values are never accepted as flags, never printed, and never sent anywhere but `https://api.monarch.com`.
+
+The session is checked with a read-only identity query before it is saved; if Monarch rejects it, nothing is saved and any existing session is kept. When the session later expires, commands fail with `AUTH_SESSION_EXPIRED` and tell you to log in again in the browser and re-run `monarch auth import-session`. Logging out of Monarch in the browser also ends the CLI's session, and `monarch auth logout` removes only the local copy.
+
 ### Login Errors
 Monarch rejects many unrelated login attempts with HTTP 401/403 — wrong credentials, its minimum-app-version gate ("Please update to the latest version of the app"), email one-time-code verification, CAPTCHA, and its edge's browser-signature block. The CLI reports MFA only when Monarch's response names an MFA challenge (`error_code` `MFA_REQUIRED`, or an MFA/two-factor/TOTP message):
 
@@ -40,11 +55,11 @@ Once authenticated, a session token is stored locally. This token is used for al
 
 - **Storage Path**: `~/.monarchmoney-cli/session.json`
 - **Security**: The file is saved with `0600` permissions (read/write by owner only).
-- **Contents**: The session file stores the token, account email, timestamps, and profile metadata needed for `auth status`.
+- **Contents**: The session file stores the token (or, for an imported browser session, `auth_method`, `session_id`, and `csrf_token`), account email, timestamps, and profile metadata needed for `auth status`.
 
 ### Secret Indirection (`env:NAME`)
 
-The stored `token` value may be a literal token or the indirection form `env:NAME`. When the token is `env:NAME`, it is resolved from the environment variable `NAME` each time the session is loaded, so the real secret never has to sit in the file. If `NAME` is unset, the CLI fails with an explicit error rather than proceeding unauthenticated.
+The stored `token`, `session_id`, and `csrf_token` values may each be a literal or the indirection form `env:NAME`. When the token is `env:NAME`, it is resolved from the environment variable `NAME` each time the session is loaded, so the real secret never has to sit in the file. If `NAME` is unset, the CLI fails with an explicit error rather than proceeding unauthenticated.
 
 This is the agent-first alternative to an OS keychain (which cannot be used unattended). For example, write a `0600` session file containing `"token": "env:MONARCH_TOKEN"` and supply the secret from the environment or a secret manager at run time:
 

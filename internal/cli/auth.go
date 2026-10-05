@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -35,6 +37,13 @@ var (
 	scanInput           = fmt.Scanln
 	authenticateSession = auth.Authenticate
 	newSessionStore     = auth.NewStore
+	stdinIsTerminal     = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+	readStdin           = func() ([]byte, error) { return io.ReadAll(io.LimitReader(os.Stdin, maxCookieHeaderInput)) }
+)
+
+const (
+	maxCookieHeaderInput = 64 << 10
+	importSessionHint    = "log into https://app.monarch.com in your browser and run `monarch auth import-session`"
 )
 
 // defaultSessionPath is the injectable session path function. All command handlers
@@ -70,7 +79,7 @@ var authCmd = &cobra.Command{
 	Use:     "auth",
 	Short:   "Manage authentication and session",
 	GroupID: "utility",
-	Example: "  monarch auth login\n  monarch auth status\n  monarch auth logout",
+	Example: "  monarch auth import-session\n  monarch auth login\n  monarch auth status\n  monarch auth logout",
 }
 
 var loginCmd = &cobra.Command{
@@ -119,6 +128,9 @@ var loginCmd = &cobra.Command{
 				cliErr = e
 			} else {
 				cliErr = errors.New(errors.InternalError, "authentication failed", errors.CatInternal, false, err)
+			}
+			if cliErr.Code == errors.AuthRequired {
+				cliErr = errors.New(cliErr.Code, cliErr.Message+"; Monarch may be blocking password login — "+importSessionHint, cliErr.Category, false, nil)
 			}
 			handleError(renderer, "auth.login", cliErr, start)
 			return
@@ -181,6 +193,7 @@ var statusCmd = &cobra.Command{
 		data := map[string]any{
 			"authenticated": true,
 			"session_valid": true,
+			"auth_method":   authMethod(sess),
 			"email":         displayEmail,
 			"profile":       sess.Profile,
 			"created_at":    sess.CreatedAt,
@@ -193,6 +206,7 @@ var statusCmd = &cobra.Command{
 			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Authenticated: yes\n")
+			fmt.Printf("Auth method: %s\n", strings.ReplaceAll(authMethod(sess), "_", " "))
 			fmt.Printf("Email: %s\n", displayEmail)
 			fmt.Printf("Profile: %s\n", sess.Profile)
 			fmt.Printf("Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
@@ -210,6 +224,7 @@ var logoutCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		store := newSessionStore(defaultSessionPath())
+		sess, _ := store.Load()
 		if err := store.Delete(); err != nil && !os.IsNotExist(err) {
 			handleError(renderer, "auth.logout", errors.New(errors.InternalError, "failed to delete session", errors.CatInternal, false, err), start)
 			return
@@ -220,6 +235,9 @@ var logoutCmd = &cobra.Command{
 			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Successfully logged out.")
+			if sess != nil && sess.AuthMethod == auth.AuthMethodBrowserSession {
+				fmt.Println("Only the local copy was removed; your Monarch browser session is still active. Log out in the browser to revoke it.")
+			}
 		}
 	},
 }
@@ -245,21 +263,33 @@ func init() {
 
 	sessionCmd.AddCommand(sessionPathCmd)
 	authCmd.AddCommand(loginCmd)
+	authCmd.AddCommand(importSessionCmd)
 	authCmd.AddCommand(statusCmd)
 	authCmd.AddCommand(logoutCmd)
 	authCmd.AddCommand(sessionCmd)
 	RootCmd.AddCommand(authCmd)
 }
 
+func authMethod(sess *auth.Session) string {
+	if sess.AuthMethod == "" {
+		return "token"
+	}
+	return sess.AuthMethod
+}
+
 func handleError(r *output.Renderer, command string, err *errors.Error, start time.Time) {
 	if err != nil && err.Code == errors.AuthSessionExpired {
 		store := newSessionStore(defaultSessionPath())
 		if sess, loadErr := store.Load(); loadErr == nil {
-			if sess.Email != "" {
-				err = errors.New(err.Code, fmt.Sprintf("session token for %s stored at %s expired or invalid; run `monarch auth login` again", sess.Email, defaultSessionPath()), err.Category, err.Retryable, err.Err)
-			} else {
-				err = errors.New(err.Code, fmt.Sprintf("session token stored at %s expired or invalid; run `monarch auth login` again", defaultSessionPath()), err.Category, err.Retryable, err.Err)
+			subject, next := "session token", "run `monarch auth login` again"
+			if sess.AuthMethod == auth.AuthMethodBrowserSession {
+				subject, next = "Monarch browser session", importSessionHint
 			}
+			where := "stored at " + defaultSessionPath()
+			if sess.Email != "" {
+				where = "for " + sess.Email + " " + where
+			}
+			err = errors.New(err.Code, fmt.Sprintf("%s %s expired or invalid; %s", subject, where, next), err.Category, err.Retryable, err.Err)
 		}
 	}
 

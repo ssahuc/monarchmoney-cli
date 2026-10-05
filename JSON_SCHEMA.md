@@ -45,6 +45,25 @@
 
 With no `backup_path` configured, `data` contains only `status`, `accounts`, `transactions`, and `holdings`. When `backup_path` is set and a successful sync regenerates the ledger backup, `data.backup` holds the journal path. If regeneration fails, `data.backup` is absent and `meta.warnings` explains the failure while the command still exits `0`.
 
+### `auth import-session`
+
+```json
+{
+  "status": "session imported",
+  "auth_method": "browser_session",
+  "email": "you@example.com",
+  "profile": "default",
+  "created_at": "2026-10-05T12:00:00Z",
+  "session_path": "/Users/you/.monarchmoney-cli/session.json"
+}
+```
+
+Cookie values are never included. A session Monarch rejects at validation fails with `AUTH_REQUIRED` and nothing is saved; malformed input (missing `session_id` or `csrftoken`, or `--json` on a terminal with nothing piped) fails with `INVALID_ARGUMENTS`.
+
+### `auth status`
+
+`data` contains `authenticated`, `session_valid`, `auth_method` (`token` or `browser_session`), `email`, `profile`, `created_at`, `updated_at`, and `session_path`.
+
 ## Error Envelope
 
 ```json

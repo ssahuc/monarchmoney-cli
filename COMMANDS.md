@@ -127,7 +127,7 @@ For task-oriented walkthroughs with real command output, see the [guides](README
 - `monarch reports list`: List saved reports.
 - `monarch reports show <id>`: Show a saved report.
 - `monarch subscription show`: Show Monarch subscription details.
-- `monarch auth status`: Check current authentication status.
+- `monarch auth status`: Check current authentication status and auth method (`token` or `browser_session`).
 - `monarch auth session path`: Print the session file path.
 - `monarch doctor`: Verify environment, authentication, and API connectivity.
 - `monarch hledger backup [FILE]`: Regenerate a complete hledger journal from the local cache (default `./monarch.journal`). Covers all accounts (including hidden and closed, with lifecycle flags), full transaction history with all metadata preserved as comment tags (notes, raw merchant names, tags, goal linkage, review state, hide-from-reports, recurring), closing balance assertions, and investment holdings as opening positions with holding names. Pending transactions are excluded; transfers become single two-posting transactions; every entry carries a `monarch-id:` tag. History gaps (balances not explained by cached transactions) surface as deterministic `opening balances` entries through `equity:monarch:opening`, so assertions always pass while gaps stay auditable. Reads only from the local cache — run `monarch cache sync --all` first for archive-complete history. The command warns when such gaps exist or the cache has not been synced for over 7 days.
@@ -137,8 +137,9 @@ For task-oriented walkthroughs with real command output, see the [guides](README
 
 All mutations are protected by the [Safety Model](./docs/safety.md).
 
-- `monarch auth login`: Authenticate and persist session.
-- `monarch auth logout`: Remove the local session token.
+- `monarch auth login`: Authenticate with email/password and persist session. Monarch currently blocks programmatic password login; use `auth import-session`.
+- `monarch auth import-session`: Store the Monarch session from your own browser login. Prompts (hidden) for the `session_id` and `csrftoken` cookies on a terminal, or reads a `Cookie` header from stdin and keeps only those two; validated against Monarch before saving. Secrets are never accepted as flags.
+- `monarch auth logout`: Remove the local session. An imported browser session stays active until you log out in the browser.
 - `monarch accounts refresh [account-id...]`: Trigger a remote sync of all accounts (or specific ones).
 - `monarch accounts create-manual`: Create a manual account. Requires `--name` and `--subtype`; `--type` defaults to `cash`.
 - `monarch accounts update <id>`: Update account name or balance.
