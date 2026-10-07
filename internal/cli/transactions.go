@@ -258,6 +258,12 @@ var transactionsDeleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
+		if dryRun {
+			// A delete dry run is computed locally and never contacts Monarch, so
+			// it is permitted in read-only mode too (household fork ADR 0017).
+			renderLocalDryRunPlan("transactions.delete", id)
+			return
+		}
 		runMutation(cmd, "transactions.delete", "failed to delete transaction", safety.TierDestructive, func() (mutation, *errors.Error) {
 			return mutation{
 				resourceID: id,

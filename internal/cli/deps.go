@@ -126,6 +126,16 @@ func runMutation(cmd *cobra.Command, command, failMsg string, tier safety.Operat
 	m.human()
 }
 
+// renderLocalDryRunPlan renders a mutation plan without creating a client or
+// sending any request. Only commands whose dry run is purely local may use it.
+func renderLocalDryRunPlan(command, resourceID string) {
+	start := time.Now()
+	renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+	plan := safety.NewPlan()
+	plan.Add(command, resourceID, nil, nil)
+	renderer.RenderSuccess(output.NewEnvelope(command, profile, output.SchemaVersion, requestID, plan, time.Since(start)))
+}
+
 func wrapError(err error, message string) *errors.Error {
 	if e, ok := err.(*errors.Error); ok {
 		return e

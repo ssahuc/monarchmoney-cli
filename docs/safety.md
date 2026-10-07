@@ -38,6 +38,8 @@ Before executing a mutation, you can use the `--dry-run` flag to see exactly wha
 monarch budgets set --category cat_123 --amount 500 --dry-run
 ```
 
+Read-only mode normally takes precedence over `--dry-run`. The one exception is `transactions delete --dry-run`, which is computed locally without contacting Monarch and is therefore allowed in read-only mode (ADR 0017).
+
 ### 3. Explicit Confirmation
 By default, any mutation or destructive command will fail if the `--confirm` flag is missing. This prevents accidental execution of dangerous commands.
 

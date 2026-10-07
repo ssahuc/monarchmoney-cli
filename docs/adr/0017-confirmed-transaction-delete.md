@@ -24,7 +24,8 @@ A caller that keeps an audit trail of deletions (household-finance SPEC-003) nee
   - a missing `deleteTransaction` payload;
   - malformed `errors`.
 - Transport and GraphQL top-level failures keep their existing codes, which are never definitive.
-- `CONFIRMATION_REQUIRED` and `READ_ONLY_VIOLATION` are raised locally by the safety check, before any request is made. `--dry-run` also makes no request.
+- `CONFIRMATION_REQUIRED` and `READ_ONLY_VIOLATION` are raised locally by the safety check, before any request is made.
+- `transactions delete --dry-run` is rendered locally, before the safety check, and never creates a client or sends a request. It is therefore permitted in read-only mode, so a caller can keep `MONARCH_READONLY` set for every non-destructive invocation. Every other command keeps the general rule that read-only takes precedence over dry-run.
 
 ## Consequences
 

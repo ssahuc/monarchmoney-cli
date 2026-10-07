@@ -110,3 +110,17 @@ func TestTransactionsDeleteDryRunSendsNoRequest(t *testing.T) {
 		t.Fatalf("dry run must plan locally only, got calls=%d code=%d env=%+v", calls, code, env)
 	}
 }
+
+func TestTransactionsDeleteDryRunUnderReadOnlySendsNoRequest(t *testing.T) {
+	env, code, calls := runDeleteWith(t, `{}`, func() { dryRun = true; readOnly = true; confirm = false })
+	if calls != 0 || code != 0 || !env.OK || len(env.Data.PlannedMutations) != 1 || env.Data.PlannedMutations[0].ResourceID != "tx-1" {
+		t.Fatalf("read-only dry run must plan locally only, got calls=%d code=%d env=%+v", calls, code, env)
+	}
+}
+
+func TestTransactionsDeleteReadOnlyWithoutDryRunStillBlocked(t *testing.T) {
+	env, code, calls := runDeleteWith(t, `{}`, func() { readOnly = true; confirm = true })
+	if calls != 0 || env.Error == nil || env.Error.Code != "READ_ONLY_VIOLATION" || code != 4 {
+		t.Fatalf("read-only without dry run must stay blocked, got calls=%d code=%d env=%+v", calls, code, env)
+	}
+}
