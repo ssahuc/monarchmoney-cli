@@ -60,6 +60,10 @@ func (e *Error) ExitCode() int {
 		return 10
 	case InvalidArguments:
 		return 2
+	case DeleteRejected:
+		return 11
+	case DeleteUnconfirmed:
+		return 12
 	default:
 		return 1
 	}

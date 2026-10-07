@@ -22,6 +22,8 @@ func TestCodeConstants(t *testing.T) {
 		{"ValidationFailed", ValidationFailed, "VALIDATION_FAILED"},
 		{"ReadOnlyViolation", ReadOnlyViolation, "READ_ONLY_VIOLATION"},
 		{"ConfirmationRequired", ConfirmationRequired, "CONFIRMATION_REQUIRED"},
+		{"DeleteRejected", DeleteRejected, "DELETE_REJECTED"},
+		{"DeleteUnconfirmed", DeleteUnconfirmed, "DELETE_UNCONFIRMED"},
 		{"ResourceNotFound", ResourceNotFound, "RESOURCE_NOT_FOUND"},
 		{"InternalError", InternalError, "INTERNAL_ERROR"},
 		{"InvalidArguments", InvalidArguments, "INVALID_ARGUMENTS"},

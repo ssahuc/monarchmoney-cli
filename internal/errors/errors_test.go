@@ -43,6 +43,8 @@ func TestExitCode(t *testing.T) {
 		{"schema changed", APISchemaChanged, 6},
 		{"validation failed", ValidationFailed, 7},
 		{"confirm required", ConfirmationRequired, 10},
+		{"delete rejected", DeleteRejected, 11},
+		{"delete unconfirmed", DeleteUnconfirmed, 12},
 		{"invalid args", InvalidArguments, 2},
 		{"default", Code("SOMETHING_ELSE"), 1},
 	}

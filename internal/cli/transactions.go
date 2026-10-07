@@ -265,7 +265,7 @@ var transactionsDeleteCmd = &cobra.Command{
 					if err := svc.DeleteTransaction(ctx, id); err != nil {
 						return nil, err
 					}
-					return map[string]string{"status": "deleted"}, nil
+					return map[string]any{"status": "deleted", "deleted": true, "transaction_id": id}, nil
 				},
 				human: func() { fmt.Printf("Successfully deleted transaction %s.\n", id) },
 			}, nil

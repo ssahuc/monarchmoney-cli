@@ -113,6 +113,10 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 | 6 | `API_SCHEMA_CHANGED` | api |
 | 7 | `VALIDATION_FAILED` | validation |
 | 10 | `CONFIRMATION_REQUIRED` | safety |
+| 11 | `DELETE_REJECTED` | api |
+| 12 | `DELETE_UNCONFIRMED` | api |
+
+`transactions delete` succeeds only when Monarch's response confirms the deletion (`deleteTransaction.deleted` is `true` and `deleteTransaction.errors` is empty). Its success `data` is `{"status":"deleted","deleted":true,"transaction_id":"<id>"}`. A well-formed response with `deleted: false` fails with `DELETE_REJECTED`: the transaction was not deleted. Any other response that does not prove the outcome fails with `DELETE_UNCONFIRMED`. That covers `deleted: true` together with payload errors, a missing or non-boolean `deleted`, and a malformed payload. Callers must treat `DELETE_UNCONFIRMED` as an unknown outcome. See ADR 0017.
 
 ## Event Stream (NDJSON)
 

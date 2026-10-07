@@ -18,6 +18,13 @@ const (
 	ResourceNotFound     Code = "RESOURCE_NOT_FOUND"
 	InternalError        Code = "INTERNAL_ERROR"
 	InvalidArguments     Code = "INVALID_ARGUMENTS"
+	// DeleteRejected: Monarch's delete payload was well formed and reported
+	// deleted == false. Definitive: the transaction was not deleted.
+	DeleteRejected Code = "DELETE_REJECTED"
+	// DeleteUnconfirmed: the delete response does not prove deletion or
+	// non-deletion (missing/non-boolean deleted, deleted == true with payload
+	// errors, malformed payload). The outcome is indeterminate.
+	DeleteUnconfirmed Code = "DELETE_UNCONFIRMED"
 )
 
 type Category string

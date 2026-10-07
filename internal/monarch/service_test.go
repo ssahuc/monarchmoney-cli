@@ -1308,7 +1308,7 @@ func testServiceTransactionMutationPaths(t *testing.T) {
 	})
 
 	t.Run("delete transaction", func(t *testing.T) {
-		runGraphQLCase(t, "Common_DeleteTransactionMutation", map[string]any{"input": map[string]any{"transactionId": "tx-1"}}, `{"deleteTransaction":{"ok":true}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_DeleteTransactionMutation", map[string]any{"input": map[string]any{"transactionId": "tx-1"}}, `{"deleteTransaction":{"deleted":true,"errors":[]}}`, func(s *Service) error {
 			return s.DeleteTransaction(context.Background(), "tx-1")
 		})
 	})

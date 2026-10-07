@@ -2,7 +2,9 @@ package monarch
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -356,14 +358,19 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, notes, categ
 	}, nil
 }
 
+// deleteTransactionPayload keeps the raw fields so that a missing or
+// non-boolean deleted, or malformed errors, can be told apart from false/empty.
+type deleteTransactionPayload struct {
+	Deleted json.RawMessage `json:"deleted"`
+	Errors  json.RawMessage `json:"errors"`
+}
+
 func (s *Service) DeleteTransaction(ctx context.Context, id string) error {
 	var resp struct {
-		DeleteTransaction struct {
-			Deleted bool `json:"deleted"`
-		} `json:"deleteTransaction"`
+		DeleteTransaction *deleteTransactionPayload `json:"deleteTransaction"`
 	}
 
-	return s.Client.DoMutation(ctx, &graphql.Request{
+	if err := s.Client.DoMutation(ctx, &graphql.Request{
 		OperationName: "Common_DeleteTransactionMutation",
 		Query:         DeleteTransactionMutation,
 		Variables: map[string]any{
@@ -371,7 +378,50 @@ func (s *Service) DeleteTransaction(ctx context.Context, id string) error {
 				"transactionId": id,
 			},
 		},
-	}, &resp)
+	}, &resp); err != nil {
+		return err
+	}
+	return classifyDeleteResponse(resp.DeleteTransaction)
+}
+
+// classifyDeleteResponse reports success only when Monarch authoritatively
+// confirmed the deletion: deleted is the boolean true and errors is empty.
+// A well-formed deleted == false is a definitive rejection; anything else
+// (missing payload, missing or non-boolean deleted, deleted == true together
+// with payload errors, malformed errors) is unconfirmed.
+func classifyDeleteResponse(p *deleteTransactionPayload) error {
+	if p == nil {
+		return errors.New(errors.DeleteUnconfirmed, "delete response has no deleteTransaction payload", errors.CatAPI, false, nil)
+	}
+	var deleted bool
+	switch strings.TrimSpace(string(p.Deleted)) {
+	case "true":
+		deleted = true
+	case "false":
+		deleted = false
+	default:
+		return errors.New(errors.DeleteUnconfirmed, "delete response has a missing or non-boolean deleted field", errors.CatAPI, false, nil)
+	}
+	var payloadErrors []struct {
+		Message string `json:"message"`
+	}
+	raw := strings.TrimSpace(string(p.Errors))
+	if raw != "" && raw != "null" {
+		if err := json.Unmarshal(p.Errors, &payloadErrors); err != nil {
+			return errors.New(errors.DeleteUnconfirmed, "delete response has malformed payload errors", errors.CatAPI, false, err)
+		}
+	}
+	if !deleted {
+		msg := "Monarch reported the transaction was not deleted"
+		if len(payloadErrors) > 0 && payloadErrors[0].Message != "" {
+			msg += ": " + payloadErrors[0].Message
+		}
+		return errors.New(errors.DeleteRejected, msg, errors.CatAPI, false, nil)
+	}
+	if len(payloadErrors) > 0 {
+		return errors.New(errors.DeleteUnconfirmed, "delete response reported deleted together with payload errors", errors.CatAPI, false, nil)
+	}
+	return nil
 }
 
 func (s *Service) UpdateTransactionSplits(ctx context.Context, txID string, splits []SplitInput) error {
